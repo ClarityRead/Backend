@@ -11,7 +11,7 @@ base_url = "http://export.arxiv.org/api/query"
 params = {
     "search_query": "cat:cs.AI",  # For example, search in the Computer Science > Artificial Intelligence category
     "start": 0,                   # Starting index for results
-    "max_results": 5,             # Maximum number of results to return
+    "max_results": 10,             # Maximum number of results to return
     "format": "json"              # Specify that you want the output in JSON format
 }
 
@@ -50,7 +50,9 @@ if __name__ == '__main__':
                 'title': entry.find('atom:title', namespace).text if entry.find('atom:title', namespace) is not None else None,
                 'published': entry.find('atom:published', namespace).text if entry.find('atom:published', namespace) is not None else None,
                 'author': entry.find('atom:author/atom:name', namespace).text if entry.find('atom:author/atom:name', namespace) is not None else None,
-                'summary': entry.find('atom:summary', namespace).text if entry.find('atom:summary', namespace) is not None else None
+                'summary': entry.find('atom:summary', namespace).text if entry.find('atom:summary', namespace) is not None else None,
+                'domain': 'cs',
+                'subdomain': 'ai'
             }
 
             pdf_link = None
