@@ -1,22 +1,12 @@
 from rest_framework import serializers
-from .models import Paper
 
-class PaperListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Paper
-        fields = ['paper_id', 'title', 'summary']
-
-class PaperDetailSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Paper
-        fields = [
-            'paper_id',
-            'title',
-            'summary',
-            'author',
-            'published',
-            'pdf_link',
-            'reference_link',
-            'domain',
-            'subdomain',
-        ]
+class PaperSerializer(serializers.Serializer):
+    paper_id = serializers.CharField()
+    title = serializers.CharField()
+    summary = serializers.CharField()
+    author = serializers.CharField(required=False)
+    published = serializers.CharField(required=False)
+    pdf_link = serializers.CharField(required=False)
+    reference_link = serializers.CharField(required=False)
+    domain = serializers.CharField(required=False)
+    subdomain = serializers.CharField(required=False)

@@ -1,26 +1,21 @@
-from rest_framework import generics, filters
-from .models import Paper
-from .serializers import PaperListSerializer, PaperDetailSerializer
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .serializers import PaperSerializer
+from .models import papers 
 
-class PaperListView(generics.ListAPIView):
-    queryset = Paper.objects.all()
-    serializer_class = PaperListSerializer
+class PaperListView(APIView):
+    def get(self, request):
+        data = list(papers.find({}, {"_id": 0}))  
+        serializer = PaperSerializer(data, many=True)
 
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['title', 'summary']  
-    ordering_fields = ['published', 'title']  
+        return Response(serializer.data)
 
-    def get_queryset(self):
-        qs = super().get_queryset()
-        domain = self.request.query_params.get('domain')
-        subdomain = self.request.query_params.get('subdomain')
-        if domain:
-            qs = qs.filter(domain=domain)
-        if subdomain:
-            qs = qs.filter(subdomain=subdomain)
-        return qs
+class PaperDetailView(APIView):
+    def get(self, request, paper_id):
+        paper = papers.find_one({"paper_id": paper_id}, {"_id": 0})
+        if not paper:
+            return Response({"error": "Paper not found"}, status=status.HTTP_404_NOT_FOUND)
+        serializer = PaperSerializer(paper)
 
-class PaperDetailView(generics.RetrieveAPIView):
-    queryset = Paper.objects.all()
-    serializer_class = PaperDetailSerializer
-    lookup_field = 'paper_id'
+        return Response(serializer.data)
