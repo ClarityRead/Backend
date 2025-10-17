@@ -1,17 +1,17 @@
 import os
+import django
 import time
 import requests
 import xml.etree.ElementTree as ET
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
-import django
 django.setup()
 
 from project import models
 
 BASE_URL = "http://export.arxiv.org/api/query"
 DOMAIN = "cs"
-SUBDOMAIN = "DB"
+SUBDOMAIN = "DC"
 MAX_RESULTS = 50
 BATCH_SIZE = 25
 SLEEP_INTERVAL = 4 
@@ -34,8 +34,6 @@ def fetch_arxiv_batch(start: int, batch_size: int):
             params=params,
             headers={"Accept": "application/xml"},
         )
-        print(response.status_code)
-        print(response.text)
         response.raise_for_status()
         return response.text
     except requests.RequestException as e:
@@ -49,11 +47,11 @@ def parse_entries(xml_data: str):
 
     for entry in entries:
         data = {
-            'paper_id': entry.find('atom:id', NAMESPACE).text if entry.find('atom:id', NAMESPACE) else None,
-            'title': entry.find('atom:title', NAMESPACE).text if entry.find('atom:title', NAMESPACE) else None,
-            'published': entry.find('atom:published', NAMESPACE).text if entry.find('atom:published', NAMESPACE) else None,
-            'author': entry.find('atom:author/atom:name', NAMESPACE).text if entry.find('atom:author/atom:name', NAMESPACE) else None,
-            'summary': entry.find('atom:summary', NAMESPACE).text if entry.find('atom:summary', NAMESPACE) else None,
+            'paper_id': entry.find('atom:id', NAMESPACE).text if entry.find('atom:id', NAMESPACE) != None else None,
+            'title': entry.find('atom:title', NAMESPACE).text if entry.find('atom:title', NAMESPACE) != None else None,
+            'published': entry.find('atom:published', NAMESPACE).text if entry.find('atom:published', NAMESPACE) != None else None,
+            'author': entry.find('atom:author/atom:name', NAMESPACE).text if entry.find('atom:author/atom:name', NAMESPACE) != None else None,
+            'summary': entry.find('atom:summary', NAMESPACE).text if entry.find('atom:summary', NAMESPACE) != None else None,
             'domain': DOMAIN,
             'subdomain': SUBDOMAIN,
             'pdf_link': None,
