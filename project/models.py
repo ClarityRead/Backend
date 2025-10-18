@@ -1,11 +1,14 @@
 from pymongo import MongoClient
+import os 
 from dotenv import load_dotenv
-import os
+from pathlib import Path
 
+"""
 load_dotenv()
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+MONGO_URI = os.getenv("MONGO_URI")"""
 
-# Global variables for MongoDB connection
+MONGO_URI = "mongodb+srv://new_xander:thenewpassword@cluster0.nk0qa3t.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+
 _client = None
 _db_handle = None
 
@@ -15,13 +18,16 @@ def get_papers_collection():
     
     try:
         if _client is None:
+            if not MONGO_URI:
+                return None
+                
             _client = MongoClient(MONGO_URI)
+            # Test the connection
+            _client.admin.command('ping')
             _db_handle = _client["backend"]
-            print("Connected to MongoDB database")
         
         return _db_handle["papers"]
     except Exception as e:
-        print(f"Failed to connect to MongoDB: {e}")
         return None
 
 def InsertFiles(data): 
