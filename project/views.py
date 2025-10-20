@@ -2,13 +2,50 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import PaperSerializer
-from .models import get_papers_collection
+from .models import get_papers_collection, InsertFiles, AddUser, DoesUserExist
 import logging
-from django.core.paginator import Paginator
 import re
-from bson import Regex
 
 logger = logging.getLogger(__name__)
+
+class SignUpView(APIView):
+    def post(self, request, format=None):
+        print(request.data)
+        username = request.data['username']
+        password = request.data['password']
+        email = request.data['email']
+
+        if not username or not password or not email:
+            return Response(
+                {"error": "You are missing parameters!"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        if len(password) < 8:
+            return Response(
+                {"error": "Your password is less than 8 characters!"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        if DoesUserExist(username):
+            return Response(
+                {"error": "The username you chose has already been taken!"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        if email.count('@') != 1: 
+            return Response(
+                {"error": "You chose an invalid email!"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        AddUser(username, password, email)
+        print(f"User '{username}' created successfully.")
+
+        return Response(
+            {"success": "You are now a user!"}, 
+            status=status.HTTP_201_CREATED
+        )
 
 class PaperListView(APIView):
     def get(self, request):
