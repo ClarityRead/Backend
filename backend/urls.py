@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from project.views import PaperListView, PaperDetailView, PaperSearchView, SignUpView
+from project.views import PaperListView, PaperDetailView, PaperSearchView, SignUpView, LogInView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -24,4 +24,5 @@ urlpatterns = [
     path('api/papers/search/', PaperSearchView.as_view(), name='papers-search'),
     path('api/papers/<str:paper_id>/', PaperDetailView.as_view(), name='paper-detail'),
     path('api/auth/signup', SignUpView.as_view(), name="signup"),
+    path('api/auth/login', LogInView.as_view(), name="login"),
 ]

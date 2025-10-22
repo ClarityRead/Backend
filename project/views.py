@@ -2,15 +2,46 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import PaperSerializer
-from .models import get_papers_collection, InsertFiles, AddUser, DoesUserExist
+from .models import get_papers_collection, Login, AddUser, DoesUserExist, CreateJWTToken
 import logging
 import re
 
 logger = logging.getLogger(__name__)
 
+class LogInView(APIView):
+    def post(self, request, format=None):
+        username = request.data['username']
+        password = request.data['password']
+
+        if not username or not password:
+            return Response(
+                {"error": "You are missing parameters!"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            ) 
+
+        if not DoesUserExist(username):
+            return Response(
+                {"error": "The username you entered does not exist!"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        valid_password = Login(username, password)
+
+        if not valid_password:
+            return Response(
+                {"error": "Incorrect password!"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        token = CreateJWTToken(username)
+
+        return Response({
+            "access_token": token,
+            "username": username,
+        }, status=status.HTTP_200_OK)
+
 class SignUpView(APIView):
     def post(self, request, format=None):
-        print(request.data)
         username = request.data['username']
         password = request.data['password']
         email = request.data['email']
@@ -42,10 +73,12 @@ class SignUpView(APIView):
         AddUser(username, password, email)
         print(f"User '{username}' created successfully.")
 
-        return Response(
-            {"success": "You are now a user!"}, 
-            status=status.HTTP_201_CREATED
-        )
+        token = CreateJWTToken(username)
+
+        return Response({
+            "access_token": token,
+            "username": username,
+        }, status=status.HTTP_200_OK)
 
 class PaperListView(APIView):
     def get(self, request):

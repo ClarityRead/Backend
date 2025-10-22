@@ -3,6 +3,9 @@ import os
 from dotenv import load_dotenv
 from pathlib import Path
 import bcrypt
+import jwt
+from datetime import datetime, timedelta
+from backend import settings 
 
 """
 load_dotenv()
@@ -66,6 +69,12 @@ def DoesUserExist(username):
 
     return users.count_documents({"username": username}) > 0
 
+def GetUserObjectByUsername(username):
+    users = GetUsers()
+    user_data = users.find_one({"username": username})
+
+    return user_data
+
 def AddUser(username, password, email):
     users = GetUsers()
 
@@ -73,29 +82,42 @@ def AddUser(username, password, email):
         print("Cannot create a new user - MongoDB is not connected")
         return     
 
-    salt = bcrypt.gensalt()
-    password = bcrypt.hashpw(password.encode('utf-8'), salt)
-
-    entry = {"username": username, "password": password, "email": email}
+    hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    entry = {"username": username, "password": hashed_pw, "email": email}
     users.update_one({"username": username}, {'$set': entry}, upsert=True)
 
-def Login(username, password):
-    """user_data = users_collection.find_one({"username": username})
-    
-    if user_data:
-        stored_hashed_password = user_data['password']
-        stored_salt = user_data['salt']
-        
-        # Hash the provided password with the stored salt
-        entered_hashed_password = bcrypt.hashpw(password.encode('utf-8'), stored_salt)
-        
-        # Compare the hashes
-        if entered_hashed_password == stored_hashed_password:
-            print(f"Password for {username} verified successfully.")
-            return True
-        else:
-            print(f"Incorrect password for {username}.")
-            return False
-    else:
+def Login(username, entered_password):
+    user_data = GetUserObjectByUsername(username)
+
+    if not user_data: 
         print(f"User {username} not found.")
-        return False"""
+
+        return False
+    
+    entered_pw = entered_password.encode('utf-8')
+    stored_pw = user_data['password'].encode('utf-8')    
+    correct = bcrypt.checkpw(entered_pw, stored_pw)
+    
+    if correct:
+        print(f"Password for {username} verified successfully.")
+        return True
+    else:
+        print(f"Incorrect password for {username}.")
+        return False
+
+def CreateJWTToken(username):
+    user_data = GetUserObjectByUsername(username)
+
+    if not user_data:
+        return
+
+    payload = {
+        "user_id": str(user_data['_id']),
+        "username": username,
+        "exp": datetime.utcnow() + timedelta(hours=1),
+        "iat": datetime.utcnow(),
+    }
+
+    token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
+
+    return token
