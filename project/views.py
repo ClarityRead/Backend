@@ -5,8 +5,53 @@ from .serializers import PaperSerializer
 from .models import get_papers_collection, Login, AddUser, DoesUserExist, CreateJWTToken
 import logging
 import re
+import os
+import openai
 
 logger = logging.getLogger(__name__)
+OPEN_AI_KEY = "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"
+openai.api_key = OPEN_AI_KEY
+
+def ChatGPTRequest(prompt, model="gpt-4", max_tokens=500):
+    try:
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=max_tokens
+        )
+
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"ChatGPT request failed: {str(e)}")
+
+        return "Error generating AI response."
+
+class PaperSummaryView(APIView):
+    def post(self, request, paper_id):
+        papers = get_papers_collection()
+        paper = papers.find_one({"paper_id": paper_id}, {"_id": 0})
+
+        if not paper:
+            return Response({"error": "Paper not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        text = paper['summary']
+        prompt = f"Summarize this academic paper for a student:\n{text}"
+        summary = ChatGPTRequest(prompt)
+        
+        return Response({"summary": summary})
+
+class ExplainTermView(APIView):
+    def post(self, request):
+        term = request.data.get("term")
+
+        if not term:
+            return Response({"error": "Missing term parameter"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        prompt = f"Explain the following academic term in simple terms: {term}"
+        explanation = ChatGPTRequest(prompt)
+        
+        return Response({"explanation": explanation})
 
 class LogInView(APIView):
     def post(self, request, format=None):
