@@ -9,8 +9,7 @@ import os
 import openai
 
 logger = logging.getLogger(__name__)
-OPEN_AI_KEY = "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"
-openai.api_key = OPEN_AI_KEY
+openai.api_key = os.getenv("OPEN_AI_KEY")
 
 def ChatGPTRequest(prompt, model="gpt-4", max_tokens=500):
     try:
@@ -50,7 +49,7 @@ class ExplainTermView(APIView):
         
         prompt = f"Explain the following academic term in simple terms: {term}"
         explanation = ChatGPTRequest(prompt)
-        
+
         return Response({"explanation": explanation})
 
 class LogInView(APIView):
