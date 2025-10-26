@@ -127,15 +127,14 @@ class SignUpView(APIView):
 class PaperListView(APIView):
     def get(self, request):
         try:
-            print("Getting papers")
             papers = get_papers_collection()
+
             if papers is None:
                 return Response(
                     {"error": "Database connection failed. Please check MongoDB connection."}, 
                     status=status.HTTP_503_SERVICE_UNAVAILABLE
                 )
             
-            # Get search and pagination parameters
             page = int(request.GET.get('page', 1))
             page_size = int(request.GET.get('page_size', 20))
             search_string = request.GET.get('search', '').strip()
@@ -143,22 +142,14 @@ class PaperListView(APIView):
             subdomain = request.GET.get('subdomain', '').strip().lower()
             case_sensitive = request.GET.get('case_sensitive', 'false').lower() == 'true'
             
-            # Validate pagination parameters
             if page < 1:
                 page = 1
-            if page_size < 1 or page_size > 100:  # Limit max page size
+            if page_size < 1 or page_size > 100:  
                 page_size = 20
             
-            # Build MongoDB query
             query = self._build_search_query(search_string, domain, subdomain, case_sensitive)
-            
-            # Get total count for pagination info
             total_count = papers.count_documents(query)
-            
-            # Calculate skip value for pagination
             skip = (page - 1) * page_size
-            
-            # Fetch data with pagination and search
             cursor = papers.find(query, {"_id": 0}).skip(skip).limit(page_size)
             data = list(cursor)
             
@@ -179,7 +170,6 @@ class PaperListView(APIView):
                     }
                 })
             
-            # Validate data structure before serialization
             validated_data = []
             for item in data:
                 if self._validate_paper_data(item):
@@ -187,10 +177,7 @@ class PaperListView(APIView):
                 else:
                     logger.warning(f"Skipping invalid paper data: {item.get('paper_id', 'unknown')}")
             
-            # Serialize the validated data
             serializer = PaperSerializer(validated_data, many=True)
-            
-            # Calculate pagination info
             total_pages = (total_count + page_size - 1) // page_size
             
             return Response({
@@ -225,26 +212,19 @@ class PaperListView(APIView):
             )
     
     def _build_search_query(self, search_string, domain, subdomain, case_sensitive):
-        """Build MongoDB query based on search parameters"""
         query = {}
         
-        # Add domain filter
         if domain:
             query["domain"] = {"$regex": domain, "$options": "i"}
         
-        # Add subdomain filter
         if subdomain:
             query["subdomain"] = {"$regex": subdomain, "$options": "i"}
         
-        # Add text search across multiple fields
         if search_string:
-            # Validate regex pattern
             try:
-                # Test if the search string is a valid regex
                 re.compile(search_string)
                 regex_options = "" if case_sensitive else "i"
                 
-                # Search across title, summary, and author fields
                 text_query = {
                     "$or": [
                         {"title": {"$regex": search_string, "$options": regex_options}},
@@ -259,11 +239,9 @@ class PaperListView(APIView):
                     query = text_query
                     
             except re.error:
-                # If not a valid regex, treat as plain text search
                 logger.warning(f"Invalid regex pattern: {search_string}, treating as plain text")
                 regex_options = "" if case_sensitive else "i"
                 
-                # Escape special regex characters for plain text search
                 escaped_search = re.escape(search_string)
                 
                 text_query = {
@@ -309,6 +287,7 @@ class PaperDetailView(APIView):
                 )
             
             serializer = PaperSerializer(paper)
+
             return Response(serializer.data)
             
         except Exception as e:
