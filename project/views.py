@@ -7,6 +7,8 @@ import logging
 import re
 import os
 import openai
+from bson import ObjectId
+from .middleware import jwt_required
 
 logger = logging.getLogger(__name__)
 openai.api_key = os.getenv("OPEN_AI_KEY")
@@ -27,9 +29,10 @@ def ChatGPTRequest(prompt, model="gpt-4", max_tokens=500):
         return "Error generating AI response."
 
 class PaperSummaryView(APIView):
+    #@jwt_required
     def post(self, request, paper_id):
         papers = get_papers_collection()
-        paper = papers.find_one({"paper_id": paper_id}, {"_id": 0})
+        paper = papers.find_one({"paper_id": paper_id})
 
         if not paper:
             return Response({"error": "Paper not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -41,6 +44,7 @@ class PaperSummaryView(APIView):
         return Response({"summary": summary})
 
 class ExplainTermView(APIView):
+    #@jwt_required
     def post(self, request):
         term = request.data.get("term")
 
@@ -150,7 +154,7 @@ class PaperListView(APIView):
             query = self._build_search_query(search_string, domain, subdomain, case_sensitive)
             total_count = papers.count_documents(query)
             skip = (page - 1) * page_size
-            cursor = papers.find(query, {"_id": 0}).skip(skip).limit(page_size)
+            cursor = papers.find(query).skip(skip).limit(page_size)
             data = list(cursor)
             
             if not data:
@@ -170,7 +174,14 @@ class PaperListView(APIView):
                     }
                 })
             
+            for item in data:
+                if '_id' in item:
+                    item['id'] = str(item['_id'])
+
+                    del item['_id']
+
             validated_data = []
+
             for item in data:
                 if self._validate_paper_data(item):
                     validated_data.append(item)
@@ -200,12 +211,14 @@ class PaperListView(APIView):
             
         except ValueError as e:
             logger.error(f"Invalid pagination parameters: {str(e)}")
+
             return Response(
                 {"error": "Invalid pagination parameters"}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
             logger.error(f"Error fetching papers: {str(e)}")
+
             return Response(
                 {"error": "An error occurred while fetching papers"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -260,27 +273,31 @@ class PaperListView(APIView):
         return query
     
     def _validate_paper_data(self, data):
-        """Validate that paper data has required fields"""
         required_fields = ['paper_id', 'title', 'summary']
+
         return all(field in data and data[field] for field in required_fields)
 
 class PaperDetailView(APIView):
-    def get(self, request, paper_id):
+    #@jwt_required
+    def get(self, request, id):
         try:
             papers = get_papers_collection()
+
             if papers is None:
                 return Response(
                     {"error": "Database connection failed. Please check MongoDB connection."}, 
                     status=status.HTTP_503_SERVICE_UNAVAILABLE
                 )
             
-            paper = papers.find_one({"paper_id": paper_id}, {"_id": 0})
+            paper = papers.find_one({"_id": ObjectId(id)})
+            paper['id'] = paper['_id']
+
             if not paper:
                 return Response({"error": "Paper not found"}, status=status.HTTP_404_NOT_FOUND)
             
-            # Validate paper data before serialization
             if not self._validate_paper_data(paper):
-                logger.error(f"Invalid paper data structure for paper_id: {paper_id}")
+                logger.error(f"Invalid paper data structure for _id: {id}")
+
                 return Response(
                     {"error": "Paper data is corrupted or incomplete"}, 
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -291,31 +308,29 @@ class PaperDetailView(APIView):
             return Response(serializer.data)
             
         except Exception as e:
-            logger.error(f"Error fetching paper {paper_id}: {str(e)}")
+            logger.error(f"Error fetching paper {id}: {str(e)}")
+
             return Response(
                 {"error": "An error occurred while fetching the paper"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
     def _validate_paper_data(self, data):
-        """Validate that paper data has required fields"""
         required_fields = ['paper_id', 'title', 'summary']
+
         return all(field in data and data[field] for field in required_fields)
 
-
-class PaperSearchView(APIView):
-    """Advanced search endpoint with more search options"""
-    
+class PaperSearchView(APIView):    
     def get(self, request):
         try:
             papers = get_papers_collection()
+
             if papers is None:
                 return Response(
                     {"error": "Database connection failed. Please check MongoDB connection."}, 
                     status=status.HTTP_503_SERVICE_UNAVAILABLE
                 )
             
-            # Get search parameters
             page = int(request.GET.get('page', 1))
             page_size = int(request.GET.get('page_size', 20))
             search_string = request.GET.get('search', '').strip()
@@ -327,26 +342,19 @@ class PaperSearchView(APIView):
             case_sensitive = request.GET.get('case_sensitive', 'false').lower() == 'true'
             exact_match = request.GET.get('exact_match', 'false').lower() == 'true'
             
-            # Validate pagination parameters
             if page < 1:
                 page = 1
             if page_size < 1 or page_size > 100:
                 page_size = 20
             
-            # Build advanced search query
             query = self._build_advanced_search_query(
                 search_string, title_search, summary_search, author_search,
                 domain, subdomain, case_sensitive, exact_match
             )
             
-            # Get total count for pagination info
             total_count = papers.count_documents(query)
-            
-            # Calculate skip value for pagination
             skip = (page - 1) * page_size
-            
-            # Fetch data with pagination and search
-            cursor = papers.find(query, {"_id": 0}).skip(skip).limit(page_size)
+            cursor = papers.find(query).skip(skip).limit(page_size)
             data = list(cursor)
             
             if not data:
@@ -369,19 +377,22 @@ class PaperSearchView(APIView):
                         "exact_match": exact_match
                     }
                 })
+
+            for item in data:
+                if '_id' in item:
+                    item['id'] = str(item['_id'])
+
+                    del item['_id']
             
-            # Validate data structure before serialization
             validated_data = []
+
             for item in data:
                 if self._validate_paper_data(item):
                     validated_data.append(item)
                 else:
                     logger.warning(f"Skipping invalid paper data: {item.get('paper_id', 'unknown')}")
             
-            # Serialize the validated data
             serializer = PaperSerializer(validated_data, many=True)
-            
-            # Calculate pagination info
             total_pages = (total_count + page_size - 1) // page_size
             
             return Response({
@@ -408,12 +419,14 @@ class PaperSearchView(APIView):
             
         except ValueError as e:
             logger.error(f"Invalid search parameters: {str(e)}")
+
             return Response(
                 {"error": "Invalid search parameters"}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
             logger.error(f"Error searching papers: {str(e)}")
+
             return Response(
                 {"error": "An error occurred while searching papers"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -421,25 +434,21 @@ class PaperSearchView(APIView):
     
     def _build_advanced_search_query(self, search_string, title_search, summary_search, 
                                    author_search, domain, subdomain, case_sensitive, exact_match):
-        """Build advanced MongoDB query with multiple search fields"""
         query = {}
         conditions = []
         
-        # Add domain filter
         if domain:
             if exact_match:
                 query["domain"] = domain
             else:
                 query["domain"] = {"$regex": domain, "$options": "i"}
         
-        # Add subdomain filter
         if subdomain:
             if exact_match:
                 query["subdomain"] = subdomain
             else:
                 query["subdomain"] = {"$regex": subdomain, "$options": "i"}
         
-        # Add specific field searches
         if title_search:
             conditions.append(self._build_field_query("title", title_search, case_sensitive, exact_match))
         
@@ -449,16 +458,15 @@ class PaperSearchView(APIView):
         if author_search:
             conditions.append(self._build_field_query("author", author_search, case_sensitive, exact_match))
         
-        # Add general search across multiple fields
         if search_string:
             search_conditions = []
+
             for field in ["title", "summary", "author"]:
                 search_conditions.append(self._build_field_query(field, search_string, case_sensitive, exact_match))
             
             if search_conditions:
                 conditions.append({"$or": search_conditions})
         
-        # Combine all conditions
         if conditions:
             if len(conditions) == 1:
                 query.update(conditions[0])
@@ -468,21 +476,21 @@ class PaperSearchView(APIView):
         return query
     
     def _build_field_query(self, field, search_term, case_sensitive, exact_match):
-        """Build query for a specific field"""
         if exact_match:
             return {field: search_term}
         else:
             regex_options = "" if case_sensitive else "i"
+
             try:
-                # Test if it's a valid regex
                 re.compile(search_term)
+
                 return {field: {"$regex": search_term, "$options": regex_options}}
             except re.error:
-                # Escape special characters for plain text search
                 escaped_search = re.escape(search_term)
+
                 return {field: {"$regex": escaped_search, "$options": regex_options}}
     
     def _validate_paper_data(self, data):
-        """Validate that paper data has required fields"""
         required_fields = ['paper_id', 'title', 'summary']
+
         return all(field in data and data[field] for field in required_fields)

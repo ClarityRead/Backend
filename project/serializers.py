@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 class PaperSerializer(serializers.Serializer):
+    id = serializers.CharField()
     paper_id = serializers.CharField()
     title = serializers.CharField()
     summary = serializers.CharField()

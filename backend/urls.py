@@ -24,7 +24,7 @@ urlpatterns = [
     path('api/papers/search/', PaperSearchView.as_view(), name='papers-search'),
     path('api/papers/summary', PaperSummaryView.as_view(), name="paper-summary"),
     path('api/papers/term', ExplainTermView.as_view(), name="papers-term"),
-    path('api/papers/<str:paper_id>/', PaperDetailView.as_view(), name='paper-detail'),
+    path('api/papers/<str:id>', PaperDetailView.as_view(), name='paper-detail'),
     path('api/auth/signup', SignUpView.as_view(), name="signup"),
     path('api/auth/login', LogInView.as_view(), name="login"),
 ]
