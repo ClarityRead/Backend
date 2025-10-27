@@ -6,55 +6,24 @@ from .models import get_papers_collection, Login, AddUser, DoesUserExist, Create
 import logging
 import re
 import os
-import openai
+from google import genai
 from bson import ObjectId
 from .middleware import jwt_required
 
 logger = logging.getLogger(__name__)
-openai.api_key = os.getenv("OPEN_AI_KEY")
+client = genai.Client(api_key="AIzaSyAaJcvE8zjU1tR_E-e5672Tx7A01cpX8BU")
 
-def ChatGPTRequest(prompt, model="gpt-4", max_tokens=500):
+def LLMRequest(prompt):
     try:
-        response = openai.ChatCompletion.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=max_tokens
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
         )
 
-        return response.choices[0].message.content.strip()
+        return response.text
     except Exception as e:
-        logger.error(f"ChatGPT request failed: {str(e)}")
-
+        logger.error(f"LLM request failed: {str(e)}")
         return "Error generating AI response."
-
-class PaperSummaryView(APIView):
-    #@jwt_required
-    def post(self, request, paper_id):
-        papers = get_papers_collection()
-        paper = papers.find_one({"paper_id": paper_id})
-
-        if not paper:
-            return Response({"error": "Paper not found"}, status=status.HTTP_404_NOT_FOUND)
-        
-        text = paper['summary']
-        prompt = f"Summarize this academic paper for a student:\n{text}"
-        summary = ChatGPTRequest(prompt)
-        
-        return Response({"summary": summary})
-
-class ExplainTermView(APIView):
-    #@jwt_required
-    def post(self, request):
-        term = request.data.get("term")
-
-        if not term:
-            return Response({"error": "Missing term parameter"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        prompt = f"Explain the following academic term in simple terms: {term}"
-        explanation = ChatGPTRequest(prompt)
-
-        return Response({"explanation": explanation})
 
 class LogInView(APIView):
     def post(self, request, format=None):
@@ -183,10 +152,7 @@ class PaperListView(APIView):
             validated_data = []
 
             for item in data:
-                if self._validate_paper_data(item):
-                    validated_data.append(item)
-                else:
-                    logger.warning(f"Skipping invalid paper data: {item.get('paper_id', 'unknown')}")
+                validated_data.append(item)
             
             serializer = PaperSerializer(validated_data, many=True)
             total_pages = (total_count + page_size - 1) // page_size
@@ -271,38 +237,25 @@ class PaperListView(APIView):
                     query = text_query
         
         return query
-    
-    def _validate_paper_data(self, data):
-        required_fields = ['paper_id', 'title', 'summary']
-
-        return all(field in data and data[field] for field in required_fields)
 
 class PaperDetailView(APIView):
-    #@jwt_required
-    def get(self, request, id):
+    def get_object(self, id):
         try:
             papers = get_papers_collection()
 
-            if papers is None:
-                return Response(
-                    {"error": "Database connection failed. Please check MongoDB connection."}, 
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE
-                )
-            
-            paper = papers.find_one({"_id": ObjectId(id)})
-            paper['id'] = paper['_id']
+            return papers.find_one({"_id": ObjectId(id)})
+        except:
+            return None
+
+    #@jwt_required
+    def get(self, request, id):
+        try:
+            paper = self.get_object(id)
 
             if not paper:
                 return Response({"error": "Paper not found"}, status=status.HTTP_404_NOT_FOUND)
             
-            if not self._validate_paper_data(paper):
-                logger.error(f"Invalid paper data structure for _id: {id}")
-
-                return Response(
-                    {"error": "Paper data is corrupted or incomplete"}, 
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-            
+            paper['id'] = paper['_id']
             serializer = PaperSerializer(paper)
 
             return Response(serializer.data)
@@ -314,11 +267,35 @@ class PaperDetailView(APIView):
                 {"error": "An error occurred while fetching the paper"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-    
-    def _validate_paper_data(self, data):
-        required_fields = ['paper_id', 'title', 'summary']
 
-        return all(field in data and data[field] for field in required_fields)
+    def post(self, request, id):
+        paper = self.get_object(id)
+
+        if not paper:
+            return Response({"error": "Paper not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        action = request.data.get("action")
+
+        if action == "summarize":
+            text = paper['summary']
+            prompt = f"Summarize this academic paper for a student:\n{text}"
+            summary = LLMRequest(prompt)
+            
+            return Response({"data": summary})
+        
+        elif action == "explain_term":
+            term = request.data.get("term")
+
+            if not term:
+                return Response({"error": "Missing term parameter"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            prompt = f"Explain the following academic term in simple terms: {term}"
+            explanation = LLMRequest(prompt)
+
+            return Response({"data": explanation})
+        
+        else:
+            return Response({"error": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
 
 class PaperSearchView(APIView):    
     def get(self, request):
@@ -387,10 +364,7 @@ class PaperSearchView(APIView):
             validated_data = []
 
             for item in data:
-                if self._validate_paper_data(item):
-                    validated_data.append(item)
-                else:
-                    logger.warning(f"Skipping invalid paper data: {item.get('paper_id', 'unknown')}")
+                validated_data.append(item)
             
             serializer = PaperSerializer(validated_data, many=True)
             total_pages = (total_count + page_size - 1) // page_size
@@ -489,8 +463,3 @@ class PaperSearchView(APIView):
                 escaped_search = re.escape(search_term)
 
                 return {field: {"$regex": escaped_search, "$options": regex_options}}
-    
-    def _validate_paper_data(self, data):
-        required_fields = ['paper_id', 'title', 'summary']
-
-        return all(field in data and data[field] for field in required_fields)
