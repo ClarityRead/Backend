@@ -1,3 +1,4 @@
+import io
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -9,6 +10,10 @@ import os
 from google import genai
 from bson import ObjectId
 from .middleware import jwt_required
+import requests
+import pdfplumber
+from rest_framework.response import Response
+from rest_framework import status
 
 logger = logging.getLogger(__name__)
 client = genai.Client(api_key="AIzaSyAaJcvE8zjU1tR_E-e5672Tx7A01cpX8BU")
@@ -277,11 +282,31 @@ class PaperDetailView(APIView):
         action = request.data.get("action")
 
         if action == "summarize":
-            text = paper['summary']
-            prompt = f"Summarize this academic paper for a student:\n{text}"
-            summary = LLMRequest(prompt)
-            
-            return Response({"data": summary})
+            pdf_url = paper.get('pdf_link')
+            if not pdf_url:
+                return Response({"error": "No PDF link available"}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                # Download the PDF
+                response = requests.get(pdf_url)
+                response.raise_for_status()
+
+                # Open PDF from bytes
+                with pdfplumber.open(io.BytesIO(response.content)) as pdf:
+                    full_text = "\n".join(page.extract_text() for page in pdf.pages if page.extract_text())
+                
+                if not full_text.strip():
+                    return Response({"error": "PDF is empty or could not extract text"}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Create prompt for LLM
+                prompt = f"Summarize this academic paper for a student:\n{full_text}"
+                summary = LLMRequest(prompt)
+
+                return Response({"data": summary})
+            except requests.RequestException as e:
+                return Response({"error": f"Failed to fetch PDF: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({"error": f"Error processing PDF: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         elif action == "explain_term":
             term = request.data.get("term")
