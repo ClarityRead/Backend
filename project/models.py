@@ -6,6 +6,7 @@ import bcrypt
 import jwt
 from datetime import datetime, timedelta
 from backend import settings 
+from bson import ObjectId
 
 """
 load_dotenv()
@@ -34,6 +35,14 @@ def get_papers_collection():
         
         return _db_handle["papers"]
     except Exception as e:
+        return None
+
+def GetPaperObject(id):
+    try:
+        papers = get_papers_collection()
+
+        return papers.find_one({"_id": ObjectId(id)})
+    except:
         return None
 
 def GetUsers():

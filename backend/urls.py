@@ -16,13 +16,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from project.views import PaperListView, PaperDetailView, PaperSearchView, SignUpView, LogInView
+from project.views import PaperListView, PaperDetailView, PaperPDFView, PaperSearchView, SignUpView, LogInView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/papers/', PaperListView.as_view(), name='papers-list'),
     path('api/papers/search/', PaperSearchView.as_view(), name='papers-search'),
     path('api/papers/<str:id>', PaperDetailView.as_view(), name='paper-detail'),
+    path('api/papers/pdf/<str:id>', PaperPDFView.as_view(), name='paper-pdf'),
     path('api/auth/signup', SignUpView.as_view(), name="signup"),
     path('api/auth/login', LogInView.as_view(), name="login"),
 ]

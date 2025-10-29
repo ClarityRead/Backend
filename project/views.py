@@ -1,14 +1,14 @@
 import io
+from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import PaperSerializer
-from .models import get_papers_collection, Login, AddUser, DoesUserExist, CreateJWTToken
+from .models import get_papers_collection, Login, AddUser, DoesUserExist, CreateJWTToken, GetPaperObject
 import logging
 import re
 import os
 from google import genai
-from bson import ObjectId
 from .middleware import jwt_required
 import requests
 import pdfplumber
@@ -243,19 +243,28 @@ class PaperListView(APIView):
         
         return query
 
-class PaperDetailView(APIView):
-    def get_object(self, id):
+class PaperPDFView(APIView):
+    #@jwt_required
+    def get(self, request, id):
+        pdf_url = "https://arxiv.org/pdf/cs/9309101v1"
+
         try:
-            papers = get_papers_collection()
+            r = requests.get(pdf_url, stream=True)
+            r.raise_for_status()
+            response = HttpResponse(r.content, content_type="application/pdf")
+            response["Access-Control-Allow-Origin"] = "*"
 
-            return papers.find_one({"_id": ObjectId(id)})
-        except:
-            return None
+            return response
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching paper PDF {id}: {str(e)}")
 
+            return HttpResponse(f"Error fetching PDF: {e}", status=500)
+
+class PaperDetailView(APIView):
     #@jwt_required
     def get(self, request, id):
         try:
-            paper = self.get_object(id)
+            paper = GetPaperObject(id)
 
             if not paper:
                 return Response({"error": "Paper not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -274,7 +283,7 @@ class PaperDetailView(APIView):
             )
 
     def post(self, request, id):
-        paper = self.get_object(id)
+        paper = GetPaperObject(id)
 
         if not paper:
             return Response({"error": "Paper not found"}, status=status.HTTP_404_NOT_FOUND)
