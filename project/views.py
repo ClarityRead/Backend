@@ -298,46 +298,42 @@ class PaperDetailView(APIView):
         
         action = request.data.get("action")
 
-        if action == "summarize":
-            pdf_url = paper.get('pdf_link')
-            if not pdf_url:
-                return Response({"error": "No PDF link available"}, status=status.HTTP_400_BAD_REQUEST)
+        pdf_url = paper.get('pdf_link')
 
-            try:
-                # Download the PDF
-                response = requests.get(pdf_url)
-                response.raise_for_status()
+        if not pdf_url:
+            return Response({"error": "No PDF link available"}, status=status.HTTP_400_BAD_REQUEST)
 
-                # Open PDF from bytes
-                with pdfplumber.open(io.BytesIO(response.content)) as pdf:
-                    full_text = "\n".join(page.extract_text() for page in pdf.pages if page.extract_text())
-                
-                if not full_text.strip():
-                    return Response({"error": "PDF is empty or could not extract text"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            response = requests.get(pdf_url)
+            response.raise_for_status()
 
-                # Create prompt for LLM
-                prompt = f"Summarize this academic paper for a student:\n{full_text}"
+            with pdfplumber.open(io.BytesIO(response.content)) as pdf:
+                full_text = "\n".join(page.extract_text() for page in pdf.pages if page.extract_text())
+            
+            if not full_text.strip():
+                return Response({"error": "PDF is empty or could not extract text"}, status=status.HTTP_400_BAD_REQUEST)
+        
+            if action == "summarize":
+                prompt = f"Summarize this academic paper for me:\n{full_text}"
                 summary = LLMRequest(prompt)
 
                 return Response({"data": summary})
-            except requests.RequestException as e:
-                return Response({"error": f"Failed to fetch PDF: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-            except Exception as e:
-                return Response({"error": f"Error processing PDF: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        elif action == "explain_term":
-            term = request.data.get("term")
+            elif action == "explain_term":
+                term = request.data.get("term")
 
-            if not term:
-                return Response({"error": "Missing term parameter"}, status=status.HTTP_400_BAD_REQUEST)
-            
-            prompt = f"Explain the following academic term in simple terms: {term}"
-            explanation = LLMRequest(prompt)
+                if not term:
+                    return Response({"error": "Missing term parameter"}, status=status.HTTP_400_BAD_REQUEST)
+                
+                prompt = f"Here is the academic paper I am asking about for context: {full_text}. Explain this for me about the paper, please: {term}"
+                explanation = LLMRequest(prompt)
 
-            return Response({"data": explanation})
-        
-        else:
-            return Response({"error": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"data": explanation})
+            else:
+                return Response({"error": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
+        except requests.RequestException as e:
+            return Response({"error": f"Failed to fetch PDF: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Error processing PDF: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class PaperSearchView(APIView):    
     def get(self, request):
