@@ -10,7 +10,7 @@ SUBDOMAIN = "DC"
 MAX_RESULTS = 50
 BATCH_SIZE = 25
 SLEEP_INTERVAL = 4 
-PARSE = False
+PARSE = True
 
 NAMESPACE = {
     'atom': 'http://www.w3.org/2005/Atom',

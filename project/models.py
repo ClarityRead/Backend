@@ -12,7 +12,9 @@ from bson import ObjectId
 load_dotenv()
 MONGO_URI = os.getenv("MONGO_URI")"""
 
-MONGO_URI = "mongodb+srv://new_xander:thenewpassword@cluster0.nk0qa3t.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+# MONGO_URI = "mongodb+srv://new_xander:thenewpassword@cluster0.nk0qa3t.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+
+MONGO_URI = "mongodb://localhost:27017/clarityread"
 
 _client = None
 _db_handle = None

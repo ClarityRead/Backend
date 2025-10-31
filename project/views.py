@@ -246,9 +246,17 @@ class PaperListView(APIView):
 class PaperPDFView(APIView):
     #@jwt_required
     def get(self, request, id):
-        pdf_url = "https://arxiv.org/pdf/cs/9309101v1"
-
         try:
+            paper = GetPaperObject(id)
+            
+            if not paper:
+                return HttpResponse("Paper not found", status=404)
+            
+            pdf_url = paper.get('pdf_link')
+            
+            if not pdf_url:
+                return HttpResponse("PDF link not available for this paper", status=404)
+
             r = requests.get(pdf_url, stream=True)
             r.raise_for_status()
             response = HttpResponse(r.content, content_type="application/pdf")
